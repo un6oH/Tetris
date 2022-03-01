@@ -1,16 +1,14 @@
-//Guidelines at https://tetris.wiki/Tetris_Guideline
+// Guidelines at https://tetris.wiki/Tetris_Guideline
 
-import { blockMatrix, wallKick } from "./tetromino_matrices_LUT.js";
-
-var gameState, baseLevel, level, score;
+var gameState = 0, baseLevel = 1, level = 1, score = 0;
 var defaultUpdateSpeed, updateSpeed, updateTimer;
 var paused = true;
 
-const rows = new Array[30];
+const rows = [];
 var bags = [[], []];
-var bag, bagIndex, holdType, linesCleared, lastAction, comboCount;
-var tetrominoHeld, canHold;
-var difficultBonus;
+var bag = 0, bagIndex = 0, holdType, linesCleared = 0, lastAction, comboCount = 0;
+var tetrominoHeld = false, canHold = true;
+var difficultBonus = false;
 var tetromino;
 
 const cellW = 40;
@@ -19,29 +17,27 @@ var ui;
 const I = 0, J = 1, L = 2, O = 3, S = 4, Z = 5, T = 6;
 const blockHues = [180, 240, 30, 60, 120, 0, 300];
 
-var highscores = new Array[5];
+var highscores = [];
 
 function setup() {
   createCanvas(660, 840);
-  textFont(loadFont("data/SEGUIBL.TTF", 20));
+  textFont(loadFont("data/SEGUIBL.TTF"), 72);
 
   gameState = 0
   baseLevel = 1;
-
-  cellW = 40;
-  ui = new ui();
-
+  
+  ui = new Ui();
   colorMode(HSB, 360, 100, 100);
 }
 
 function draw() {
   background(255);
 
-  ui.box(0, 0, 0, width, height);
-  ui.box(1, ui.matrixX, ui.matrixY, ui.matrixW, ui.matrixH);
-  ui.box(1, ui.previewBoxX, ui.previewBoxY, ui.previewBoxW, ui.previewBoxH);
-  ui.box(1, ui.holdBoxX, ui.holdBoxY, ui.holdBoxW, ui.holdBoxH);
-  ui.box(1, ui.scoreBoxX, ui.scoreBoxY, ui.scoreBoxW, ui.scoreBoxH);
+  ui.drawBox(0, 0, 0, width, height);
+  ui.drawBox(1, ui.matrixX, ui.matrixY, ui.matrixW, ui.matrixH);
+  ui.drawBox(1, ui.previewBoxX, ui.previewBoxY, ui.previewBoxW, ui.previewBoxH);
+  ui.drawBox(1, ui.holdBoxX, ui.holdBoxY, ui.holdBoxW, ui.holdBoxH);
+  ui.drawBox(1, ui.scoreBoxX, ui.scoreBoxY, ui.scoreBoxW, ui.scoreBoxH);
   ui.grid();
 
   if (gameState == 0) {
@@ -96,7 +92,7 @@ function draw() {
       textAlign(CENTER);
       text("Paused", ui.mainTextX, ui.mainTextY);
 
-      ui.box(0, ui.mainTextX - 40, ui.mainTextY + 15, 80, 40);
+      ui.drawBox(0, ui.mainTextX - 40, ui.mainTextY + 15, 80, 40);
       textSize(30);
       fill(0);
       text("Quit", ui.mainTextX, ui.mainTextY + 45);
@@ -256,7 +252,7 @@ class Row {
     this.index = id;
     this.cells = new Array(10);
     for (let i = 0; i < 10; i++) {
-      cells[i] = new Cell(index, i);
+      this.cells[i] = new Cell(this.index, i);
     }
   }
 
@@ -310,7 +306,7 @@ class Tetromino {
     this.hardDrop = false;
     this.aboveBlock = false;
 
-    this, blocks = new Array[4];
+    this.blocks = new Array(4);
     for (let i = 0; i < 4; i++) {
       this.blocks[i] = new Block(this.r + blockMatrix[t][0][i][1], this.c + blockMatrix[t][0][i][0], t);
     }
@@ -442,14 +438,14 @@ class Tetromino {
 
 class Block {
   constructor(r, c, t) {
-    this.r = r_;
-    this.c = c_;
+    this.r = r;
+    this.c = c;
     this.type = t;
     this.hue = blockHues[t];
     this.x = c * cellW;
     this.y = -r * cellW - cellW;
-    this.x1 = x + cellW;
-    this.y1 = y + cellW;
+    this.x1 = this.x + cellW;
+    this.y1 = this.y + cellW;
   }
 
   update() {
@@ -477,7 +473,7 @@ class GhostTetromino {
     this.r = 0;
     this.c = 0
     this.type = t;
-    this.blocks = new Array[4];
+    this.blocks = new Array(4);
     for (let i = 0; i < 4; i++) {
       this.blocks[i] = new GhostBlock(this.r + blockMatrix[t][0][i][1], this.c + blockMatrix[t][0][i][0]);
     }
@@ -488,17 +484,17 @@ class GhostTetromino {
     this.c = c;
     let placePos = r;
 
-    let blocked = false;
-    while (!blocked) {
-      blocked = false;
+    let isBlocked = false;
+    while (!isBlocked) {
+      isBlocked = false;
       for (let i = 0; i < 4; i++) {
-        if (blocked(placePos + blockMatrix[type][s][i][1], this.c + blockMatrix[this.type][s][i][0])) {
-          blocked = true;
+        if (blocked(placePos + blockMatrix[this.type][s][i][1], this.c + blockMatrix[this.type][s][i][0])) {
+          isBlocked = true;
           placePos++;
           break;
         }
       }
-      if (!blocked) {
+      if (!isBlocked) {
         placePos--;
       }
     }
@@ -560,7 +556,7 @@ function setNewTetromino() {
 
 function updatePreview() {
   let count = 0;
-  let queue = new Array[4];
+  let queue = new Array(4);
   for (let i of bags[bag]) {
     if (count > 3) {
       break;
@@ -631,16 +627,16 @@ function keyPressed() {
   if (gameState == 1) {
     if (key == CODED) {
       switch (keyCode) {
-        case LEFT:
+        case LEFT_ARROW:
           tetromino.move(-1, 0);
           break;
-        case RIGHT:
+        case RIGHT_ARROW:
           tetromino.move(1, 0);
           break;
-        case UP:
+        case UP_ARROW:
           tetromino.rotate(1);
           break;
-        case DOWN:
+        case DOWN_ARROW:
           tetromino.move(0, -1);
           score++;
           break;
@@ -663,7 +659,7 @@ function keyPressed() {
   }
 }
 
-class ui {
+class Ui {
   constructor() {
     this.edge = cellW / 8;
 
@@ -692,11 +688,11 @@ class ui {
 
     this.hue = 0;
 
-    this.preview = new Array[4];
+    this.preview = new Array(4);
     this.hold;
   }
 
-  box(type, x, y, w, h) {
+  drawBox(type, x, y, w, h) {
     rectMode(CORNER);
     noStroke();
     let x1 = x + w;
@@ -705,7 +701,7 @@ class ui {
     let light = color(this.hue, 35, 95);
     let border = color(this.hue, 50, 90);
     let dark = color(this.hue, 50, 80);
-    let fill = color(this.hue, 10, 100);
+    let fillCol = color(this.hue, 10, 100);
     if (type == 0) {
       fill(light);
       rect(x, y, w, this.edge);
@@ -722,11 +718,11 @@ class ui {
       rect(x - this.edge, y - this.edge, w + edge2, this.edge);
       rect(x - this.edge, y - this.edge, this.edge, h + edge2);
       fill(light);
-      rect(x1, y, this.edge, h + edge);
+      rect(x1, y, this.edge, h + this.edge);
       rect(x, y1, w + this.edge, this.edge);
       triangle(x1 + this.edge, y - this.edge, x1 + this.edge, y + this.edge, x1 - this.edge, y + this.edge);
       triangle(x - this.edge, y1 + this.edge, x + this.edge, y1 + this.edge, x + this.edge, y1 - this.edge);
-      fill(fill);
+      fill(fillCol);
       rect(x, y, w, h);
     }
   }
@@ -763,10 +759,10 @@ class ui {
     fill(0);
     text("Level: " + this.baseLevel, this.mainTextX, this.mainTextY + 40);
 
-    box(0, this.mainTextX + 80, this.mainTextY + 15, 30, 30);
+    this.drawBox(0, this.mainTextX + 80, this.mainTextY + 15, 30, 30);
     fill(0);
     text("-", this.mainTextX + 95, this.mainTextY + 38);
-    box(0, this.mainTextX + 115, this.mainTextY + 15, 30, 30);
+    this.drawBox(0, this.mainTextX + 115, this.mainTextY + 15, 30, 30);
     fill(0);
     text("+", this.mainTextX + 130, this.mainTextY + 38);
   }
@@ -777,7 +773,7 @@ class DisplayTetromino {
     this.x = (!(t == 0 || t == 3)) ? x - cellW / 2 : x - cellW;
     this.y = (t != 0) ? y + cellW : y + cellW / 2;
     this.type = t;
-    this.blocks = new Array[4];
+    this.blocks = new Array(4);
     for (let i = 0; i < 4; i++) {
       this.blocks[i] = new Block(blockMatrix[t][0][i][1], blockMatrix[t][0][i][0], t);
     }
@@ -792,3 +788,59 @@ class DisplayTetromino {
     pop();
   }
 }
+
+// matrices for all tetrominos in all rotations
+// blockMatrix[type][state][block][0:x, 1:y]
+const blockMatrix = [
+  /*I*/ [
+  [[-1, 0], [0, 0], [1, 0], [2, 0]],
+  [[1, 1], [1, 0], [1, -1], [1, -2]],
+  [[-1, -1], [0, -1], [1, -1], [2, -1]],
+  [[0, 1], [0, 0], [0, -1], [0, -2]]],
+  /*J*/ [
+  [[-1, 1], [-1, 0], [0, 0], [1, 0]],
+  [[0, 1], [1, 1], [0, 0], [0, -1]],
+  [[-1, 0], [0, 0], [1, 0], [1, -1]],
+  [[0, 1], [0, 0], [-1, -1], [0, -1]]],
+  /*L*/ [
+  [[1, 1], [-1, 0], [0, 0], [1, 0]],
+  [[0, 1], [0, 0], [0, -1], [1, -1]],
+  [[-1, 0], [0, 0], [1, 0], [-1, -1]],
+  [[-1, 1], [0, 1], [0, 0], [0, -1]]],
+  /*O*/ [
+  [[0, 1], [1, 1], [0, 0], [1, 0]],
+  [[0, 1], [1, 1], [0, 0], [1, 0]],
+  [[0, 1], [1, 1], [0, 0], [1, 0]],
+  [[0, 1], [1, 1], [0, 0], [1, 0]]],
+  /*S*/ [
+  [[0, 1], [1, 1], [-1, 0], [0, 0]],
+  [[0, 1], [0, 0], [1, 0], [1, -1]],
+  [[0, 0], [1, 0], [-1, -1], [0, -1]],
+  [[-1, 1], [-1, 0], [0, 0], [0, -1]]],
+  /*Z*/ [
+  [[-1, 1], [0, 1], [0, 0], [1, 0]],
+  [[1, 1], [0, 0], [1, 0], [0, -1]],
+  [[-1, 0], [0, 0], [0, -1], [1, -1]],
+  [[0, 1], [-1, 0], [0, 0], [-1, -1]]],
+  /*T*/ [
+  [[0, 1], [-1, 0], [0, 0], [1, 0]],
+  [[0, 1], [0, 0], [1, 0], [0, -1]],
+  [[-1, 0], [0, 0], [1, 0], [0, -1]],
+  [[0, 1], [-1, 0], [0, 0], [0, -1]]]
+];
+
+// SRS wall kick matrix: wallKick[type][state][test][x or y]
+const wallKick = [
+[
+[[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+[[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+[[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+[[0, 0], [-1, 0], [-1, -1], [0, 2], [1, -2]]
+], 
+[
+[[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+[[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+[[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+[[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]]
+]
+];
