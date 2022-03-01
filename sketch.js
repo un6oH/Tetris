@@ -1,33 +1,32 @@
 // Guidelines at https://tetris.wiki/Tetris_Guideline
 
-var gameState = 0, baseLevel = 1, level = 1, score = 0;
-var defaultUpdateSpeed, updateSpeed, updateTimer;
-var paused = true;
+var gameState, baseLevel, level, score;
+var updateSpeed, updateTimer;
+var paused;
 
-const rows = [];
-var bags = [[], []];
-var bag = 0, bagIndex = 0, holdType, linesCleared = 0, lastAction, comboCount = 0;
+const rows = new Array(30);
+const bags = new Array(2);
+var bag = 0, bagIndex = 0, holdType = 0, linesCleared = 0, lastAction = 0, comboCount = 0;
 var tetrominoHeld = false, canHold = true;
 var difficultBonus = false;
 var tetromino;
 
 const cellW = 40;
-var ui;
+const ui = {};
 
 const I = 0, J = 1, L = 2, O = 3, S = 4, Z = 5, T = 6;
 const blockHues = [180, 240, 30, 60, 120, 0, 300];
 
-var highscores = [];
+var highscores = [0, 0, 0, 0, 0];
 
 function setup() {
   createCanvas(660, 840);
   textFont(loadFont("data/SEGUIBL.TTF"), 72);
 
-  gameState = 0
-  baseLevel = 1;
+  reset();
   
-  ui = new Ui();
-  colorMode(HSB, 360, 100, 100);
+  resizeUI();
+  colorMode(HSB, 360, 100, 100, 100);
 }
 
 function draw() {
@@ -116,10 +115,17 @@ function draw() {
 
 function reset() {
   gameState = 0;
+  baseLevel = 1;
+  level = 1;
+  score = 0;
+  updateSpeed = 60;
+  updateTimer = 0;
+  paused = true;
 }
 
 function gameStart() {
   gameState = 1;
+  paused = false;
   level = baseLevel;
   score = 0;
   linesCleared = 0;
@@ -130,8 +136,8 @@ function gameStart() {
   for (let i = 0; i < rows.length; i++) {
     rows[i] = new Row(i);
   }
-  bags[0].splice(0, 7);
-  bags[1].splice(0, 7);
+  bags[0] = [];
+  bags[1] = [];
   for (var bag of bags) {
     for (let i = 0; i < 7; i++) {
       bag.push(i);
@@ -144,7 +150,7 @@ function gameStart() {
   tetrominoHeld = false;
   canHold = true;
 
-  ui.hue = 12 * baseLevel + linesCleared * 2;
+  ui.hue = 12 * (baseLevel - 1);
 }
 
 function gameEnd() {
@@ -240,7 +246,7 @@ function tetrominoPlaced() {
   }
 
   level = baseLevel + int(linesCleared / 12) + 1;
-  ui.hue = 12 * baseLevel + linesCleared * 2;
+  ui.hue = 12 * (baseLevel - 1) + linesCleared * 2;
 
   setNewTetromino();
   canHold = true;
@@ -250,7 +256,7 @@ class Row {
   constructor(id) {
     this.filled = 0;
     this.index = id;
-    this.cells = new Array(10);
+    this.cells = [];
     for (let i = 0; i < 10; i++) {
       this.cells[i] = new Cell(this.index, i);
     }
@@ -303,7 +309,6 @@ class Tetromino {
     this.c = 4;
     this.state = 0;
     this.type = t;
-    this.hardDrop = false;
     this.aboveBlock = false;
 
     this.blocks = new Array(4);
@@ -316,8 +321,8 @@ class Tetromino {
 
   update() {
     for (let i = 0; i < 4; i++) {
-      this.blocks[i].r = r + blockMatrix[this.type][this.state][i][1];
-      this.blocks[i].c = c + blockMatrix[this.type][this.state][i][0];
+      this.blocks[i].r = this.r + blockMatrix[this.type][this.state][i][1];
+      this.blocks[i].c = this.c + blockMatrix[this.type][this.state][i][0];
       this.blocks[i].update();
     }
     this.aboveBlock = false;
@@ -333,15 +338,15 @@ class Tetromino {
   }
 
   move(x, y) {
-    let blocked = false;
+    let isBlocked = false;
     for (let b of this.blocks) {
       if (blocked(b.r + y, b.c + x)) {
-        blocked = true;
+        isBlocked = true;
         break;
       }
     }
 
-    if (!blocked) {
+    if (!isBlocked) {
       this.r += y;
       this.c += x;
       this.update();
@@ -371,7 +376,7 @@ class Tetromino {
     let test = 0;
     if (this.type != O) {
       while (!validSpace && test < 5) {
-        let table = int(type == I);
+        let table = int(this.type == I);
         let index = (d == 1) ? init : (init != 0) ? init - 1 : 3;
         xkick = wallKick[table][index][test][0] * d;
         ykick = wallKick[table][index][test][1] * d;
@@ -397,21 +402,20 @@ class Tetromino {
   }
 
   place() {
-    if (r == 20) {
+    if (this.r == 20) {
       gameEnd();
     }
-    for (let b of blocks) {
+    for (let b of this.blocks) {
       rows[b.r].cells[b.c].update(b);
       rows[b.r].filled++;
     }
-    this.hardDrop = false;
     tetrominoPlaced();
   }
 
   hardDrop() {
-    this.hardDrop = true;
+    let hardDropState = true;
     let dist = 0;
-    while (this.hardDrop == true) {
+    while (hardDropState) {
       this.move(0, -1);
       dist++;
     }
@@ -421,7 +425,7 @@ class Tetromino {
   display() {
     this.ghost.display();
     if (this.aboveBlock) {
-      for (let b of blocks) {
+      for (let b of this.blocks) {
         if (b.y > -ui.matrixH) {
           noFill();
           stroke(0, 0, 100);
@@ -430,7 +434,7 @@ class Tetromino {
         }
       }
     }
-    for (let b of blocks) {
+    for (let b of this.blocks) {
       b.display();
     }
   }
@@ -501,8 +505,8 @@ class GhostTetromino {
 
     this.r = placePos;
     for (let i = 0; i < 4; i++) {
-      this.blocks[i].r = this.r + blockMatrix[type][s][i][1];
-      this.blocks[i].c = this.c + blockMatrix[type][s][i][0];
+      this.blocks[i].r = this.r + blockMatrix[this.type][s][i][1];
+      this.blocks[i].c = this.c + blockMatrix[this.type][s][i][0];
       this.blocks[i].update();
     }
   }
@@ -608,8 +612,10 @@ function mouseClicked() {
   if (gameState != 1) {
     if (mouseX > 300 && mouseY > 215 && mouseX < 330 && mouseY < 245) {
       baseLevel = (baseLevel > 1) ? baseLevel - 1 : 1;
+      ui.hue = 12 * (baseLevel - 1);
     } else if (mouseX > 335 && mouseY > 215 && mouseX < 365 && mouseY < 245) {
       baseLevel++;
+      ui.hue = 12 * (baseLevel - 1);
     } else {
       gameStart();
     }
@@ -625,147 +631,143 @@ function mouseClicked() {
 
 function keyPressed() {
   if (gameState == 1) {
-    if (key == CODED) {
-      switch (keyCode) {
-        case LEFT_ARROW:
-          tetromino.move(-1, 0);
-          break;
-        case RIGHT_ARROW:
-          tetromino.move(1, 0);
-          break;
-        case UP_ARROW:
-          tetromino.rotate(1);
-          break;
-        case DOWN_ARROW:
-          tetromino.move(0, -1);
-          score++;
-          break;
-        case BACKSPACE:
-
-      }
-    } else {
-      if (key == ' ') {
-        tetromino.hardDrop();
-      } else if (key == 'z' || key == ';') {
-        tetromino.rotate(-1);
-      } else if (key == 'x' || key == 'q') {
+    switch (keyCode) {
+      case LEFT_ARROW:
+        tetromino.move(-1, 0);
+        break;
+      case RIGHT_ARROW:
+        tetromino.move(1, 0);
+        break;
+      case UP_ARROW:
         tetromino.rotate(1);
-      } else if (key == 'c' || key == 'j') {
-        if (canHold) {
-          updateHold(tetromino.type);
-        }
+        break;
+      case DOWN_ARROW:
+        tetromino.move(0, -1);
+        score++;
+        break;
+    }
+    
+    if (key == ' ') {
+      tetromino.hardDrop();
+    } else if (key == 'z' || key == ';') {
+      tetromino.rotate(-1);
+    } else if (key == 'x' || key == 'q') {
+      tetromino.rotate(1);
+    } else if (key == 'c' || key == 'j') {
+      if (canHold) {
+        updateHold(tetromino.type);
       }
     }
   }
 }
 
-class Ui {
-  constructor() {
-    this.edge = cellW / 8;
+function resizeUI() {
+  ui.edge = cellW / 8;
 
-    this.matrixX = 20;
-    this.matrixY = 20;
-    this.matrixW = 400;
-    this.matrixH = 800;
+  ui.matrixX = 20;
+  ui.matrixY = 20;
+  ui.matrixW = 400;
+  ui.matrixH = 800;
 
-    this.previewBoxX = 440;
-    this.previewBoxY = 20;
-    this.previewBoxW = 200;
-    this.previewBoxH = 420;
+  ui.previewBoxX = 440;
+  ui.previewBoxY = 20;
+  ui.previewBoxW = 200;
+  ui.previewBoxH = 420;
 
-    this.holdBoxX = 440;
-    this.holdBoxY = 460;
-    this.holdBoxW = 200;
-    this.holdBoxH = 120;
+  ui.holdBoxX = 440;
+  ui.holdBoxY = 460;
+  ui.holdBoxW = 200;
+  ui.holdBoxH = 120;
 
-    this.scoreBoxX = 440;
-    this.scoreBoxY = 600;
-    this.scoreBoxW = 200;
-    this.scoreBoxH = 220;
+  ui.scoreBoxX = 440;
+  ui.scoreBoxY = 600;
+  ui.scoreBoxW = 200;
+  ui.scoreBoxH = 220;
 
-    this.mainTextX = this.matrixX + this.matrixW / 2;
-    this.mainTextY = this.matrixY + this.matrixH / 5 + cellW / 2;
+  ui.mainTextX = ui.matrixX + ui.matrixW / 2;
+  ui.mainTextY = ui.matrixY + ui.matrixH / 5 + cellW / 2;
 
-    this.hue = 0;
+  ui.hue = 0;
 
-    this.preview = new Array(4);
-    this.hold;
+  ui.preview = new Array(4);
+  ui.hold;
+
+  console.log("Resized UI")
+}
+
+ui.drawBox = function(type, x, y, w, h) {
+  rectMode(CORNER);
+  noStroke();
+  let x1 = x + w;
+  let y1 = y + h;
+  let edge2 = this.edge * 2;
+  let light = color(this.hue, 35, 95);
+  let border = color(this.hue, 50, 90);
+  let dark = color(this.hue, 50, 80);
+  let fillCol = color(this.hue, 10, 100);
+  if (type == 0) {
+    fill(light);
+    rect(x, y, w, this.edge);
+    rect(x, y, this.edge, h);
+    fill(dark);
+    rect(x1 - this.edge, y + this.edge, this.edge, h - this.edge);
+    rect(x + this.edge, y1 - this.edge, w - this.edge, this.edge);
+    triangle(x1, y, x1 - edge2, y + edge2, x1, y + edge2);
+    triangle(x, y1, x + edge2, y1, x + edge2, y1 - edge2);
+    fill(border);
+    rect(x + this.edge, y + this.edge, w - edge2, h - edge2);
+  } else {
+    fill(dark);
+    rect(x - this.edge, y - this.edge, w + edge2, this.edge);
+    rect(x - this.edge, y - this.edge, this.edge, h + edge2);
+    fill(light);
+    rect(x1, y, this.edge, h + this.edge);
+    rect(x, y1, w + this.edge, this.edge);
+    triangle(x1 + this.edge, y - this.edge, x1 + this.edge, y + this.edge, x1 - this.edge, y + this.edge);
+    triangle(x - this.edge, y1 + this.edge, x + this.edge, y1 + this.edge, x + this.edge, y1 - this.edge);
+    fill(fillCol);
+    rect(x, y, w, h);
   }
+}
 
-  drawBox(type, x, y, w, h) {
-    rectMode(CORNER);
-    noStroke();
-    let x1 = x + w;
-    let y1 = y + h;
-    let edge2 = this.edge * 2;
-    let light = color(this.hue, 35, 95);
-    let border = color(this.hue, 50, 90);
-    let dark = color(this.hue, 50, 80);
-    let fillCol = color(this.hue, 10, 100);
-    if (type == 0) {
-      fill(light);
-      rect(x, y, w, this.edge);
-      rect(x, y, this.edge, h);
-      fill(dark);
-      rect(x1 - this.edge, y + this.edge, this.edge, h - this.edge);
-      rect(x + this.edge, y1 - this.edge, w - this.edge, this.edge);
-      triangle(x1, y, x1 - edge2, y + edge2, x1, y + edge2);
-      triangle(x, y1, x + edge2, y1, x + edge2, y1 - edge2);
-      fill(border);
-      rect(x + this.edge, y + this.edge, w - edge2, h - edge2);
-    } else {
-      fill(dark);
-      rect(x - this.edge, y - this.edge, w + edge2, this.edge);
-      rect(x - this.edge, y - this.edge, this.edge, h + edge2);
-      fill(light);
-      rect(x1, y, this.edge, h + this.edge);
-      rect(x, y1, w + this.edge, this.edge);
-      triangle(x1 + this.edge, y - this.edge, x1 + this.edge, y + this.edge, x1 - this.edge, y + this.edge);
-      triangle(x - this.edge, y1 + this.edge, x + this.edge, y1 + this.edge, x + this.edge, y1 - this.edge);
-      fill(fillCol);
-      rect(x, y, w, h);
-    }
+ui.grid = function() {
+  stroke(this.hue, 10, 75);
+  strokeWeight(2);
+  for (let i = 0; i <= 10; i++) {
+    line(this.matrixX + i * cellW, this.matrixY, this.matrixX + i * cellW, this.matrixY + this.matrixH);
   }
-
-  grid() {
-    stroke(this.hue, 10, 75);
-    strokeWeight(2);
-    for (let i = 0; i <= 10; i++) {
-      line(this.matrixX + i * cellW, this.matrixY, this.matrixX + i * cellW, this.matrixY + this.matrixH);
-    }
-    for (let i = 0; i <= 20; i++) {
-      line(this.matrixX, this.matrixY + i * cellW, this.matrixX + this.matrixW, this.matrixY + i * cellW);
-    }
+  for (let i = 0; i <= 20; i++) {
+    line(this.matrixX, this.matrixY + i * cellW, this.matrixX + this.matrixW, this.matrixY + i * cellW);
   }
+}
 
-  displayPreview() {
-    for (let t of this.preview) {
-      t.display();
-    }
+ui.displayPreview = function() {
+  for (let t of this.preview) {
+    t.display();
   }
+}
 
-  displayScores(y) {
-    textAlign(CORNER);
-    textSize(20);
-    fill(0);
-    for (let i = 0; i < 5; i++) {
-      text((i + 1) + ": " + highscores[i], this.scoreBoxX + 15, this.scoreBoxY + y + 30 + 25 * i);
-    }
+ui.displayScores = function(y) {
+  textAlign(CORNER);
+  textSize(20);
+  fill(0);
+  for (let i = 0; i < 5; i++) {
+    text((i + 1) + ": " + highscores[i], this.scoreBoxX + 15, this.scoreBoxY + y + 30 + 25 * i);
   }
+}
 
-  displayLevelSelector() {
-    textAlign(CENTER);
-    textSize(30);
-    fill(0);
-    text("Level: " + this.baseLevel, this.mainTextX, this.mainTextY + 40);
+ui.displayLevelSelector = function() {
+  textAlign(CENTER);
+  textSize(30);
+  fill(0);
+  text("Level: " + baseLevel, this.mainTextX, this.mainTextY + 40);
 
-    this.drawBox(0, this.mainTextX + 80, this.mainTextY + 15, 30, 30);
-    fill(0);
-    text("-", this.mainTextX + 95, this.mainTextY + 38);
-    this.drawBox(0, this.mainTextX + 115, this.mainTextY + 15, 30, 30);
-    fill(0);
-    text("+", this.mainTextX + 130, this.mainTextY + 38);
-  }
+  this.drawBox(0, this.mainTextX + 80, this.mainTextY + 15, 30, 30);
+  fill(0);
+  text("-", this.mainTextX + 95, this.mainTextY + 38);
+  this.drawBox(0, this.mainTextX + 115, this.mainTextY + 15, 30, 30);
+  fill(0);
+  text("+", this.mainTextX + 130, this.mainTextY + 38);
 }
 
 class DisplayTetromino {
@@ -781,7 +783,7 @@ class DisplayTetromino {
 
   display() {
     push();
-    translate(x, y);
+    translate(this.x, this.y);
     for (let b of this.blocks) {
       b.display();
     }
