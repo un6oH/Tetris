@@ -1,6 +1,6 @@
 // Guidelines at https://tetris.wiki/Tetris_Guideline
 
-var gameState, baseLevel, level, score;
+var gameState, baseLevel = 1, level, score;
 var updateSpeed, updateTimer;
 var paused;
 
@@ -61,8 +61,8 @@ function draw() {
 
     push();
     translate(ui.matrixX, ui.matrixY + ui.matrixH);
-    for (let r of rows) {
-      for (let c of r.cells) {
+    for (let r = 0; r < 20; r++) {
+      for (let c of rows[r].cells) {
         c.display();
       }
     }
@@ -115,8 +115,7 @@ function draw() {
 
 function reset() {
   gameState = 0;
-  baseLevel = 1;
-  level = 1;
+  level = baseLevel;
   score = 0;
   updateSpeed = 60;
   updateTimer = 0;
@@ -156,15 +155,11 @@ function gameStart() {
 function gameEnd() {
   gameState = 2;
 
-  if (score > highscores[4]) {
-    let scores = new Array(6);
-    for (let i of highscores) {
-      scores.append(i);
-    }
-    scores.push(score);
-    scores.sortReverse();
-    for (let i = 0; i < 5; i++) {
-      highscores[i] = scores[i];
+  for (let i = 0; i < 5; i++) {
+    if (score >= highscores[i]) {
+      highscores.splice(i, 0, score);
+      highscores.pop();
+      break;
     }
   }
 }
@@ -174,15 +169,12 @@ function update() {
   tetromino.move(0, -1);
 }
 
-function tetrominoPlaced() {
+function placeTetromino() {
   updateTimer = 0;
   setUpdateSpeed();
-  if (updateSpeed == 0) {
-    updateSpeed = 2;
-  }
 
   let lines = 0;
-  for (let i = rows.length; i >= 0; i--) {
+  for (let i = rows.length - 1; i >= 0; i--) {
     if (rows[i].filled == 10) {
       rows[i].clear();
       linesCleared++;
@@ -245,7 +237,7 @@ function tetrominoPlaced() {
     difficultBonus = true;
   }
 
-  level = baseLevel + int(linesCleared / 12) + 1;
+  level = baseLevel + floor(linesCleared / 12);
   ui.hue = 12 * (baseLevel - 1) + linesCleared * 2;
 
   setNewTetromino();
@@ -263,7 +255,7 @@ class Row {
   }
 
   clear() {
-    for (let i = index; i < rows.length - 2; i++) {
+    for (let i = this.index; i < rows.length - 2; i++) {
       rows[i].shift(rows[i + 1]);
     }
   }
@@ -271,7 +263,7 @@ class Row {
   shift(r) {
     this.filled = r.filled;
     for (let i = 0; i < 10; i++) {
-      this.cells[i] = new Cell(index, i);
+      this.cells[i] = new Cell(this.index, i);
       if (r.cells[i].blocked) {
         this.cells[i].update(r.cells[i].block);
         this.cells[i].block.r--;
@@ -310,7 +302,7 @@ class Tetromino {
     this.state = 0;
     this.type = t;
     this.aboveBlock = false;
-
+    this.hardDropState = false;
     this.blocks = new Array(4);
     for (let i = 0; i < 4; i++) {
       this.blocks[i] = new Block(this.r + blockMatrix[t][0][i][1], this.c + blockMatrix[t][0][i][0], t);
@@ -326,7 +318,6 @@ class Tetromino {
       this.blocks[i].update();
     }
     this.aboveBlock = false;
-    setUpdateSpeed();
     for (let b of this.blocks) {
       if (blocked(b.r - 1, b.c)) {
         updateSpeed = 30;
@@ -409,13 +400,14 @@ class Tetromino {
       rows[b.r].cells[b.c].update(b);
       rows[b.r].filled++;
     }
-    tetrominoPlaced();
+    this.hardDropState = false;
+    placeTetromino();
   }
 
   hardDrop() {
-    let hardDropState = true;
+    this.hardDropState = true;
     let dist = 0;
-    while (hardDropState) {
+    while (this.hardDropState) {
       this.move(0, -1);
       dist++;
     }
@@ -606,6 +598,9 @@ function updateHold(type) {
 
 function setUpdateSpeed() {
   updateSpeed = (level < 13) ? 65 - 5 * level : 2;
+  if (updateSpeed == 0) {
+    updateSpeed = 2;
+  }
 }
 
 function mouseClicked() {
@@ -691,8 +686,6 @@ function resizeUI() {
 
   ui.preview = new Array(4);
   ui.hold;
-
-  console.log("Resized UI")
 }
 
 ui.drawBox = function(type, x, y, w, h) {
