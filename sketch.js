@@ -1,7 +1,8 @@
 // Guidelines at https://tetris.wiki/Tetris_Guideline
 
 var gameState, baseLevel = 1, level, score;
-var updateSpeed, updateTimer;
+var updateSpeed, updateTimer, inputSleep = 0, input;
+const initInputDelay = 30, inputDelay = 3;
 var paused;
 
 const rows = new Array(30);
@@ -17,7 +18,7 @@ const ui = {};
 const I = 0, J = 1, L = 2, O = 3, S = 4, Z = 5, T = 6;
 const blockHues = [180, 240, 30, 60, 120, 0, 300];
 
-var highscores = [0, 0, 0, 0, 0];
+var highscores = [500000, 400000, 300000, 200000, 100000];
 
 function setup() {
   createCanvas(660, 840);
@@ -31,6 +32,13 @@ function setup() {
 
 function draw() {
   background(255);
+  // console.log(inputSleep);
+  if (keyIsPressed && gameState == 1 && inputSleep == 0) {
+    inputHandle();
+    inputSleep = inputDelay;
+  }
+  inputSleep = (inputSleep == 0) ? 0 : inputSleep - 1;
+  
 
   ui.drawBox(0, 0, 0, width, height);
   ui.drawBox(1, ui.matrixX, ui.matrixY, ui.matrixW, ui.matrixH);
@@ -171,6 +179,7 @@ function update() {
 
 function placeTetromino() {
   updateTimer = 0;
+  inputSleep = initInputDelay;
   setUpdateSpeed();
 
   let lines = 0;
@@ -625,34 +634,45 @@ function mouseClicked() {
 }
 
 function keyPressed() {
-  if (gameState == 1) {
-    switch (keyCode) {
-      case LEFT_ARROW:
-        tetromino.move(-1, 0);
-        break;
-      case RIGHT_ARROW:
-        tetromino.move(1, 0);
-        break;
-      case UP_ARROW:
-        tetromino.rotate(1);
-        break;
-      case DOWN_ARROW:
-        tetromino.move(0, -1);
-        score++;
-        break;
-    }
-    
-    if (key == ' ') {
-      tetromino.hardDrop();
-    } else if (key == 'z' || key == ';') {
-      tetromino.rotate(-1);
-    } else if (key == 'x' || key == 'q') {
+  // console.log("keyPressed()");
+  input = keyCode;
+  if (gameState == 1) inputHandle();
+  inputSleep = initInputDelay;
+}
+
+function inputHandle() {
+  // console.log("input " + input + ", inputSleep = " + inputSleep);
+  switch (input) {
+    case LEFT_ARROW:
+      tetromino.move(-1, 0);
+      break;
+    case RIGHT_ARROW:
+      tetromino.move(1, 0);
+      break;
+    case UP_ARROW:
       tetromino.rotate(1);
-    } else if (key == 'c' || key == 'j') {
+      break;
+    case DOWN_ARROW:
+      tetromino.move(0, -1);
+      score++;
+      break;
+    case 32:
+      tetromino.hardDrop();
+    break;
+    case 90:
+    case 59:
+      tetromino.rotate(-1);
+      break;
+    case 88:
+    case 81:
+      tetromino.rotate(1);
+      break;
+    case 67:
+    case 74:
       if (canHold) {
         updateHold(tetromino.type);
       }
-    }
+      break;
   }
 }
 
