@@ -115,7 +115,7 @@ function draw() {
       rect(ui.matrixX, ui.matrixY, ui.matrixW, ui.matrixH);
 
       fill(0);
-      textSize(40);
+      textSize(ui.mainTextSize);
       textAlign(CENTER);
       text("Game Over", ui.mainTextX, ui.mainTextY);
       ui.displayLevelSelector();
