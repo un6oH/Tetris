@@ -4,6 +4,8 @@ html, body {
 }
 
 canvas {
-  display: block;
-  
+  display: block; 
+  display: flex;
+  align-items: center;
 }
+

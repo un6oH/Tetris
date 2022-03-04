@@ -1,6 +1,7 @@
 // Guidelines at https://tetris.wiki/Tetris_Guideline
 
-var gameState, baseLevel = 1, level, score;
+var gameState; // 0: main menu, 1: playing, 2: game over
+var baseLevel = 1, level, score;
 var updateSpeed, updateTimer, inputSleep = 0, input;
 const initInputDelay = 30, inputDelay = 3;
 var paused;
@@ -12,39 +13,40 @@ var tetrominoHeld = false, canHold = true;
 var difficultBonus = false;
 var tetromino;
 
-const cellW = 40;
 const ui = {};
 
 const I = 0, J = 1, L = 2, O = 3, S = 4, Z = 5, T = 6;
 const blockHues = [180, 240, 30, 60, 120, 0, 300];
+const WEB_BG_COL = [216, 77, 25];
 
 var highscores = [500000, 400000, 300000, 200000, 100000];
 
 function setup() {
-  createCanvas(660, 840);
+  createCanvas(windowWidth, windowHeight);
   textFont(loadFont("data/SEGUIBL.TTF"), 72);
 
   reset();
   
   resizeUI();
+  ui.setBorderHue(true);
   colorMode(HSB, 360, 100, 100, 100);
 }
 
 function draw() {
-  background(255);
+  background(WEB_BG_COL[0], WEB_BG_COL[1], WEB_BG_COL[2]);
   // console.log(inputSleep);
-  if (keyIsPressed && gameState == 1 && inputSleep == 0) {
+  if (keyIsPressed && gameState == 1 && !paused && inputSleep == 0) {
     inputHandle();
     inputSleep = inputDelay;
   }
   inputSleep = (inputSleep == 0) ? 0 : inputSleep - 1;
   
 
-  ui.drawBox(0, 0, 0, width, height);
+  ui.drawBox(0, 0, 0, ui.gameWidth, ui.gameHeight);
   ui.drawBox(1, ui.matrixX, ui.matrixY, ui.matrixW, ui.matrixH);
-  ui.drawBox(1, ui.previewBoxX, ui.previewBoxY, ui.previewBoxW, ui.previewBoxH);
-  ui.drawBox(1, ui.holdBoxX, ui.holdBoxY, ui.holdBoxW, ui.holdBoxH);
-  ui.drawBox(1, ui.scoreBoxX, ui.scoreBoxY, ui.scoreBoxW, ui.scoreBoxH);
+  ui.drawBox(1, ui.sideBoxX, ui.previewBoxY, ui.sideBoxW, ui.previewBoxH);
+  ui.drawBox(1, ui.sideBoxX, ui.holdBoxY, ui.sideBoxW, ui.holdBoxH);
+  ui.drawBox(1, ui.sideBoxX, ui.scoreBoxY, ui.sideBoxW, ui.scoreBoxH);
   ui.grid();
 
   if (gameState == 0) {
@@ -53,7 +55,7 @@ function draw() {
     rect(ui.matrixX, ui.matrixY, ui.matrixW, ui.matrixH);
 
     fill(0);
-    textSize(40);
+    textSize(ui.mainTextSize);
     textAlign(CENTER);
     text("Click to Start", ui.mainTextX, ui.mainTextY);
     ui.displayLevelSelector();
@@ -82,12 +84,12 @@ function draw() {
       ui.hold.display();
     }
 
-    textSize(20);
+    textSize(ui.infoTextSize);
     fill(0);
     textAlign(CORNER);
-    text("Score: " + score, ui.scoreBoxX + 15, ui.scoreBoxY + 30);
-    text("Lines: " + linesCleared, ui.scoreBoxX + 15, ui.scoreBoxY + 55);
-    text("Level: " + level, ui.scoreBoxX + 15, ui.scoreBoxY + 80);
+    text("Score: " + score, ui.sideBoxX + 15, ui.scoreBoxY + 30);
+    text("Lines: " + linesCleared, ui.sideBoxX + 15, ui.scoreBoxY + 55);
+    text("Level: " + level, ui.sideBoxX + 15, ui.scoreBoxY + 80);
 
     if (paused) {
       fill(0, 0, 100, 50);
@@ -95,14 +97,14 @@ function draw() {
       rect(ui.matrixX, ui.matrixY, ui.matrixW, ui.matrixH);
 
       fill(0);
-      textSize(40);
+      textSize(ui.mainTextSize);
       textAlign(CENTER);
       text("Paused", ui.mainTextX, ui.mainTextY);
 
-      ui.drawBox(0, ui.mainTextX - 40, ui.mainTextY + 15, 80, 40);
-      textSize(30);
+      ui.drawBox(0, ui.mainTextX - ui.cellW, ui.mainTextY + ui.halfCellW, ui.cellW * 2, ui.cellW);
+      textSize(ui.mainTextSize * 0.75);
       fill(0);
-      text("Quit", ui.mainTextX, ui.mainTextY + 45);
+      text("Quit", ui.mainTextX, ui.mainTextY + ui.cellW + ui.edge * 2);
     }
 
     if (gameState == 2) {
@@ -124,10 +126,9 @@ function draw() {
 function reset() {
   gameState = 0;
   level = baseLevel;
-  score = 0;
-  updateSpeed = 60;
   updateTimer = 0;
   paused = true;
+  ui.setBorderHue();
 }
 
 function gameStart() {
@@ -137,7 +138,7 @@ function gameStart() {
   score = 0;
   linesCleared = 0;
 
-  updateSpeed = 60;
+  setUpdateSpeed();
   updateTimer = 0;
 
   for (let i = 0; i < rows.length; i++) {
@@ -152,12 +153,13 @@ function gameStart() {
     shuffle(bag, true);
   }
   bag = 0;
+  ui.preview = new Array(4);
   setNewTetromino();
 
   tetrominoHeld = false;
   canHold = true;
 
-  ui.hue = 12 * (baseLevel - 1);
+  ui.setBorderHue(true);
 }
 
 function gameEnd() {
@@ -247,7 +249,7 @@ function placeTetromino() {
   }
 
   level = baseLevel + floor(linesCleared / 12);
-  ui.hue = 12 * (baseLevel - 1) + linesCleared * 2;
+  ui.setBorderHue(false);
 
   setNewTetromino();
   canHold = true;
@@ -280,6 +282,12 @@ class Row {
       }
     }
   }
+
+  updateDisplay() {
+    for (let cell of this.cells) {
+      cell.updateDisplay();
+    }
+  }
 }
 
 class Cell {
@@ -287,20 +295,26 @@ class Cell {
     this.r = r;
     this.c = c;
     this.blocked = false;
-    this.x = c * cellW;
-    this.y = -r * cellW - cellW;
     this.block;
   }
 
   update(b) {
     this.blocked = true;
     this.block = new Block(b.r, b.c, b.type);
+    // this.block.r = b.r;
+    // this.block.c = b.c;
+    // this.block.type = b.type;
   }
 
   display() {
     if (this.blocked) {
       this.block.display();
     }
+  }
+
+  updateDisplay() {
+    if (this.blocked) 
+      this.block.updateDisplay();
   }
 }
 
@@ -332,8 +346,10 @@ class Tetromino {
         updateSpeed = 30;
         updateTimer = 0;
         this.aboveBlock = true;
+        break;
       }
     }
+    if (!this.aboveBlock) setUpdateSpeed();
     this.ghost.update(this.r, this.c, this.state);
   }
 
@@ -431,12 +447,19 @@ class Tetromino {
           noFill();
           stroke(0, 0, 100);
           strokeWeight(4);
-          rect(b.x, b.y, cellW, cellW);
+          rect(b.x, b.y, ui.cellW, ui.cellW);
         }
       }
     }
     for (let b of this.blocks) {
       b.display();
+    }
+  }
+
+  updateDisplay() {
+    this.ghost.updateDisplay();
+    for (let block of this.blocks) {
+      block.updateDisplay();
     }
   }
 }
@@ -447,17 +470,15 @@ class Block {
     this.c = c;
     this.type = t;
     this.hue = blockHues[t];
-    this.x = c * cellW;
-    this.y = -r * cellW - cellW;
-    this.x1 = this.x + cellW;
-    this.y1 = this.y + cellW;
+    this.updateDisplay();
+    console.log("Block created");
   }
 
   update() {
-    this.x = this.c * cellW;
-    this.y = -this.r * cellW - cellW;
-    this.x1 = this.x + cellW;
-    this.y1 = this.y + cellW;
+    this.x = this.c * ui.cellW;
+    this.y = -this.r * ui.cellW - ui.cellW;
+    this.x1 = this.x + ui.cellW;
+    this.y1 = this.y + ui.cellW;
   }
 
   display() {
@@ -468,8 +489,15 @@ class Block {
       fill(this.hue, 100, 80);
       triangle(this.x, this.y1, this.x1, this.y, this.x1, this.y1);
       fill(this.hue, 90, 90);
-      rect(this.x + cellW / 8, this.y + cellW / 8, cellW * 0.75, cellW * 0.75);
+      rect(this.x + ui.cellW / 8, this.y + ui.cellW / 8, ui.cellW * 0.75, ui.cellW * 0.75);
     }
+  }
+
+  updateDisplay() {
+    this.x = this.c * ui.cellW;
+    this.y = -this.r * ui.cellW - ui.cellW;
+    this.x1 = this.x + ui.cellW;
+    this.y1 = this.y + ui.cellW;
   }
 }
 
@@ -517,6 +545,12 @@ class GhostTetromino {
       b.display();
     }
   }
+
+  updateDisplay() {
+    for (let block of this.blocks) {
+      block.updateDisplay();
+    }
+  }
 }
 
 class GhostBlock {
@@ -527,20 +561,24 @@ class GhostBlock {
   }
 
   update() {
-    this.x = this.c * cellW;
-    this.x1 = this.x + cellW;
-    this.y1 = -this.r * cellW;
-    this.y = this.y1 - cellW;
+    this.x = this.c * ui.cellW;
+    this.x1 = this.x + ui.cellW;
+    this.y1 = -this.r * ui.cellW;
+    this.y = this.y1 - ui.cellW;
   }
 
   display() {
     if (this.r < 20) {
       noStroke();
       fill(0, 0, 0, 30);
-      rect(this.x, this.y, cellW, cellW);
+      rect(this.x, this.y, ui.cellW, ui.cellW);
       fill(0, 0, 0, 20);
-      rect(this.x + cellW / 8, this.y + cellW / 8, cellW * 0.75, cellW * 0.75);
+      rect(this.x + ui.cellW / 8, this.y + ui.cellW / 8, ui.cellW * 0.75, ui.cellW * 0.75);
     }
+  }
+
+  updateDisplay() {
+    this.update();
   }
 }
 
@@ -578,7 +616,7 @@ function updatePreview() {
   }
 
   for (let i = 0; i < 4; i++) {
-    ui.preview[i] = new DisplayTetromino(540, 80 + i * 100, queue[i]);
+    ui.preview[i] = new DisplayTetromino(i, queue[i]);
   }
 }
 
@@ -600,7 +638,7 @@ function updateHold(type) {
     tetromino = new Tetromino(holdType);
   }
   holdType = type;
-  ui.hold = new DisplayTetromino(540, 520, type);
+  ui.hold = new DisplayTetromino(4, type);
 
   canHold = false;
 }
@@ -614,17 +652,17 @@ function setUpdateSpeed() {
 
 function mouseClicked() {
   if (gameState != 1) {
-    if (mouseX > 300 && mouseY > 215 && mouseX < 330 && mouseY < 245) {
+    if (mouseX > ui.mainTextX + ui.cellW * 2 && mouseX < ui.mainTextX + ui.cellW * 2.75 && mouseY > ui.mainTextY + ui.edge * 2 && mouseY < ui.mainTextY + ui.cellW) {
       baseLevel = (baseLevel > 1) ? baseLevel - 1 : 1;
-      ui.hue = 12 * (baseLevel - 1);
-    } else if (mouseX > 335 && mouseY > 215 && mouseX < 365 && mouseY < 245) {
+      ui.setBorderHue(true);
+    } else if (mouseX > ui.mainTextX + ui.cellW * 3 && mouseX < ui.mainTextX + ui.cellW * 3.75 && mouseY > ui.mainTextY + ui.edge * 2 && mouseY < ui.mainTextY + ui.cellW) {
       baseLevel++;
-      ui.hue = 12 * (baseLevel - 1);
+      ui.setBorderHue(true);
     } else {
       gameStart();
     }
   } else {
-    if (paused && mouseX > 180 && mouseY > 215 && mouseX < 260 && mouseY < 255) {
+    if (paused && mouseX > ui.mainTextX - ui.cellW && mouseX < ui.mainTextX + ui.cellW && mouseY > ui.mainTextY + ui.halfCellW && mouseY < ui.mainTextY + ui.cellW * 1.5) {
       reset();
       paused = false;
     } else {
@@ -636,7 +674,7 @@ function mouseClicked() {
 function keyPressed() {
   // console.log("keyPressed()");
   input = keyCode;
-  if (gameState == 1) inputHandle();
+  if (gameState == 1 && !paused) inputHandle();
   inputSleep = initInputDelay;
 }
 
@@ -676,36 +714,66 @@ function inputHandle() {
   }
 }
 
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  resizeUI();
+  if (gameState != 0)
+    ui.updateDisplay();
+}
+
 function resizeUI() {
-  ui.edge = cellW / 8;
+  if (windowWidth / windowHeight > 0.785714286) {
+    ui.gameHeight = windowHeight;
+    ui.gameWidth = ui.gameHeight * 0.785714286;
+  } else {
+    ui.gameWidth = windowWidth;
+    ui.gameHeight = ui.gameWidth * 1.272727273;
+  }
+  console.log("UI resized with width " + ui.gameWidth);
 
-  ui.matrixX = 20;
-  ui.matrixY = 20;
-  ui.matrixW = 400;
-  ui.matrixH = 800;
+  ui.cellW = ui.gameHeight / 21;
+  ui.edge = ui.cellW / 8;
+  ui.halfCellW = ui.cellW / 2;
 
-  ui.previewBoxX = 440;
-  ui.previewBoxY = 20;
-  ui.previewBoxW = 200;
-  ui.previewBoxH = 420;
+  ui.matrixX = ui.halfCellW;
+  ui.matrixY = ui.halfCellW;
+  ui.matrixW = ui.cellW * 10;
+  ui.matrixH = ui.cellW * 20;
 
-  ui.holdBoxX = 440;
-  ui.holdBoxY = 460;
-  ui.holdBoxW = 200;
-  ui.holdBoxH = 120;
+  ui.sideBoxX = ui.cellW * 11;
+  ui.sideBoxW = ui.cellW * 5;
 
-  ui.scoreBoxX = 440;
-  ui.scoreBoxY = 600;
-  ui.scoreBoxW = 200;
-  ui.scoreBoxH = 220;
+  ui.previewBoxY = ui.halfCellW;
+  ui.previewBoxH = ui.cellW * 10.5;
 
+  ui.holdBoxY = ui.cellW * 11.5;
+  ui.holdBoxH = ui.cellW * 3;
+
+  ui.scoreBoxY = ui.cellW * 15;
+  ui.scoreBoxH = ui.cellW * 5.5;
+
+  ui.mainTextSize = ui.cellW;
+  ui.infoTextSize = ui.cellW / 2;
   ui.mainTextX = ui.matrixX + ui.matrixW / 2;
-  ui.mainTextY = ui.matrixY + ui.matrixH / 5 + cellW / 2;
+  ui.mainTextY = ui.matrixY + ui.cellW * 5 - ui.edge;
 
-  ui.hue = 0;
+  ui.hue;
+}
 
-  ui.preview = new Array(4);
-  ui.hold;
+ui.updateDisplay = function() {
+  for (let row of rows) {
+    row.updateDisplay();
+  }
+  for (let dt of this.preview) {
+    dt.updateDisplay();
+  }
+  if (tetrominoHeld)
+    this.hold.updateDisplay();
+  tetromino.updateDisplay();
+}
+
+ui.setBorderHue = function(newGame) {
+  ui.hue = newGame ? 12 * (baseLevel - 1) : 12 * (baseLevel - 1) + linesCleared;
 }
 
 ui.drawBox = function(type, x, y, w, h) {
@@ -747,10 +815,10 @@ ui.grid = function() {
   stroke(this.hue, 10, 75);
   strokeWeight(2);
   for (let i = 0; i <= 10; i++) {
-    line(this.matrixX + i * cellW, this.matrixY, this.matrixX + i * cellW, this.matrixY + this.matrixH);
+    line(this.matrixX + i * ui.cellW, this.matrixY, this.matrixX + i * ui.cellW, this.matrixY + this.matrixH);
   }
   for (let i = 0; i <= 20; i++) {
-    line(this.matrixX, this.matrixY + i * cellW, this.matrixX + this.matrixW, this.matrixY + i * cellW);
+    line(this.matrixX, this.matrixY + i * ui.cellW, this.matrixX + this.matrixW, this.matrixY + i * ui.cellW);
   }
 }
 
@@ -765,28 +833,36 @@ ui.displayScores = function(y) {
   textSize(20);
   fill(0);
   for (let i = 0; i < 5; i++) {
-    text((i + 1) + ": " + highscores[i], this.scoreBoxX + 15, this.scoreBoxY + y + 30 + 25 * i);
+    text((i + 1) + ": " + highscores[i], this.sideBoxX + 15, this.scoreBoxY + y + 30 + 25 * i);
   }
 }
 
 ui.displayLevelSelector = function() {
   textAlign(CENTER);
-  textSize(30);
+  textSize(ui.mainTextSize * 0.75);
   fill(0);
-  text("Level: " + baseLevel, this.mainTextX, this.mainTextY + 40);
+  text("Level: " + baseLevel, this.mainTextX, this.mainTextY + ui.cellW - ui.edge);
 
-  this.drawBox(0, this.mainTextX + 80, this.mainTextY + 15, 30, 30);
+  this.drawBox(0, this.mainTextX + ui.cellW * 2, this.mainTextY + ui.edge * 2, ui.cellW * 0.75, ui.cellW * 0.75);
   fill(0);
-  text("-", this.mainTextX + 95, this.mainTextY + 38);
-  this.drawBox(0, this.mainTextX + 115, this.mainTextY + 15, 30, 30);
+  text("-", this.mainTextX + ui.cellW * 2 + ui.edge * 3, this.mainTextY + ui.cellW * 0.8125);
+  this.drawBox(0, this.mainTextX + ui.cellW * 3, this.mainTextY + ui.edge * 2, ui.cellW * 0.75, ui.cellW * 0.75);
   fill(0);
-  text("+", this.mainTextX + 130, this.mainTextY + 38);
+  text("+", this.mainTextX + ui.cellW * 3 + ui.edge * 3, this.mainTextY + ui.cellW * 0.8125);
 }
 
 class DisplayTetromino {
-  constructor(x, y, t) {
-    this.x = (!(t == 0 || t == 3)) ? x - cellW / 2 : x - cellW;
-    this.y = (t != 0) ? y + cellW : y + cellW / 2;
+  constructor(pos, t) {
+    this.pos = pos;
+    let x = ui.sideBoxX + ui.sideBoxW / 2;
+    this.x = !(t == I || t == O) ? x - ui.cellW / 2 : x - ui.cellW;
+    if (pos < 4) {
+      let y = ui.previewBoxY + ui.cellW * 1.5 + ui.cellW * 2.5 * pos;
+      this.y = (t != I) ? y + ui.cellW : y + ui.cellW / 2;
+    } else {
+      let y = ui.holdBoxY + ui.holdBoxH / 2
+      this.y = (t != I) ? y + ui.cellW : y + ui.cellW / 2;
+    }
     this.type = t;
     this.blocks = new Array(4);
     for (let i = 0; i < 4; i++) {
@@ -801,6 +877,22 @@ class DisplayTetromino {
       b.display();
     }
     pop();
+  }
+
+  updateDisplay() {
+    console.log("DisplayTetromino::updateDisplay()");
+    let x = ui.sideBoxX + ui.sideBoxW / 2;
+    this.x = !(this.type == I || this.type == O) ? x - ui.cellW / 2 : x - ui.cellW;
+    if (this.pos < 4) {
+      let y = ui.previewBoxY + ui.cellW * 1.5 + ui.cellW * 2.5 * this.pos;
+      this.y = (this.type != I) ? y + ui.cellW : y + ui.cellW / 2;
+    } else {
+      let y = ui.holdBoxY + ui.holdBoxH / 2
+      this.y = (this.type != I) ? y + ui.cellW : y + ui.cellW / 2;
+    }
+    for (let block of this.blocks) {
+      block.updateDisplay();
+    }
   }
 }
 
